@@ -1,140 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>World Radio Map</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IpsiDrad — Worldwide Radio Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+      body, html {
+        margin: 0;
+        height: 100%;
+        background: #111;
+        color: #0f0;
+        font-family: sans-serif;
+      }
+      #map {
+        height: 100%;
+        width: 100%;
+      }
+      #player {
+        position: fixed;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.8);
+        color: #0f0;
+        padding: 8px 16px;
+        border-radius: 12px;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="player">🎧 Click a station to play</div>
 
-<!-- Leaflet CSS -->
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-<style>
-  html, body {
-    margin: 0;
-    height: 100%;
-    background: #111;
-    overflow: hidden;
-  }
-  #map {
-    height: 100%;
-    width: 100%;
-  }
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+      const map = L.map("map", { worldCopyJump: true }).setView([20, 0], 2);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
 
-  /* Marker glow effect */
-  .station-dot {
-    background: rgba(0, 255, 100, 0.6);
-    border-radius: 50%;
-    width: 10px;
-    height: 10px;
-    box-shadow: 0 0 15px rgba(0, 255, 100, 0.9);
-  }
+      const player = document.getElementById("player");
+      let audio = new Audio();
 
-  /* Audio player bar */
-  #player {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(20, 20, 20, 0.85);
-    color: #0f0;
-    padding: 10px 20px;
-    border-radius: 12px;
-    font-family: sans-serif;
-    font-size: 16px;
-    box-shadow: 0 0 10px #0f0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+      async function loadStations() {
+        const proxy = "https://api.allorigins.win/raw?url=";
+        const api = "https://de1.api.radio-browser.info/json/stations/search?limit=100&hidebroken=true";
+        try {
+          const response = await fetch(proxy + encodeURIComponent(api));
+          const stations = await response.json();
+          stations.forEach(station => {
+            if (station.geo_lat && station.geo_long) {
+              const marker = L.circleMarker([station.geo_lat, station.geo_long], {
+                radius: 4,
+                color: "#0f0",
+                fillColor: "#0f0",
+                fillOpacity: 0.8
+              }).addTo(map);
 
-  #player button {
-    background: #0f0;
-    border: none;
-    color: #000;
-    font-weight: bold;
-    cursor: pointer;
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-  }
-</style>
-</head>
-<body>
-<div id="map"></div>
+              marker.bindTooltip(station.name);
+              marker.on("click", () => {
+                audio.src = station.url_resolved;
+                audio.play().catch(err => console.error("Playback failed:", err));
+                player.textContent = "▶ " + station.name;
+              });
+            }
+          });
+        } catch (err) {
+          console.error("Failed to load stations:", err);
+          player.textContent = "⚠️ Failed to load stations.";
+        }
+      }
 
-<div id="player">
-  <button id="play">▶</button>
-  <span id="stationName">Click a station to play</span>
-  <audio id="audio" controls style="display:none;"></audio>
-</div>
-
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-  const map = L.map("map", {
-    worldCopyJump: true,
-    zoomSnap: 0.1,
-    minZoom: 2
-  }).setView([20, 0], 2);
-
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    attribution: "&copy; OpenStreetMap, &copy; CartoDB",
-    subdomains: "abcd",
-    maxZoom: 5,
-  }).addTo(map);
-
-  const audio = document.getElementById("audio");
-  const stationName = document.getElementById("stationName");
-  const playBtn = document.getElementById("play");
-
-  let currentUrl = "";
-
-  // Fetch stations with fallback proxy
-  async function getStations() {
-    const endpoint = "https://de1.api.radio-browser.info/json/stations?limit=5000&hidebroken=true";
-    try {
-      let res = await fetch(endpoint);
-      if (!res.ok) throw new Error("Direct fetch failed");
-      return await res.json();
-    } catch (e) {
-      console.warn("Falling back to CORS proxy...");
-      const proxy = "https://corsproxy.io/?" + encodeURIComponent(endpoint);
-      const res = await fetch(proxy);
-      return await res.json();
-    }
-  }
-
-  // Place markers
-  getStations().then(stations => {
-    console.log("Stations fetched:", stations.length);
-    stations.forEach(st => {
-      if (!st.latitude || !st.longitude) return;
-      const dot = L.divIcon({ className: "station-dot" });
-      const marker = L.marker([st.latitude, st.longitude], { icon: dot }).addTo(map);
-      marker.on("click", () => {
-        stationName.textContent = st.name || "Unknown Station";
-        currentUrl = st.url_resolved;
-        audio.src = currentUrl;
-        audio.play().catch(err => console.warn("Playback error:", err));
-      });
-    });
-  }).catch(err => {
-    console.error("Station load failed:", err);
-  });
-
-  // Manual play button
-  playBtn.addEventListener("click", () => {
-    if (!currentUrl) return;
-    if (audio.paused) {
-      audio.play();
-      playBtn.textContent = "⏸";
-    } else {
-      audio.pause();
-      playBtn.textContent = "▶";
-    }
-  });
-</script>
-</body>
+      loadStations();
+    </script>
+  </body>
 </html>
