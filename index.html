@@ -1,79 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>IpsiDrad — Worldwide Radio Map</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-      body, html {
-        margin: 0;
-        height: 100%;
-        background: #111;
-        color: #0f0;
-        font-family: sans-serif;
-      }
-      #map {
-        height: 100%;
-        width: 100%;
-      }
-      #player {
-        position: fixed;
-        bottom: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(0,0,0,0.8);
-        color: #0f0;
-        padding: 8px 16px;
-        border-radius: 12px;
-        font-size: 14px;
-      }
-    </style>
+    <meta name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <!-- Progressive Web App basics -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Radiocast">
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon-167x167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon-120x120.png">
+
+    <!-- Manifest -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Primary Meta -->
+    <title>Radiocast - Worldwide Radio Map</title>
+    <meta name="description"
+      content="Stream live radio from thousands of stations worldwide. Free, no signup required.">
+
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#000000">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Radiocast - Explore World Radio Stations">
+    <meta property="og:description"
+      content="Discover and listen to radio stations from around the world. More than 8000 stations available.">
+    <meta property="og:image" content="https://radio.prateekkeshari.com/og-image.webp">
+
+    <!-- Core assets -->
+    <script type="module" crossorigin src="/assets/main-7dcdea7d.js"></script>
+    <link rel="stylesheet" href="/assets/index-6dc0a027.css">
   </head>
+
   <body>
-    <div id="map"></div>
-    <div id="player">🎧 Click a station to play</div>
+    <div id="root"></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Service Worker Registration -->
     <script>
-      const map = L.map("map", { worldCopyJump: true }).setView([20, 0], 2);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
-
-      const player = document.getElementById("player");
-      let audio = new Audio();
-
-      async function loadStations() {
-        const proxy = "https://api.allorigins.win/raw?url=";
-        const api = "https://de1.api.radio-browser.info/json/stations/search?limit=100&hidebroken=true";
-        try {
-          const response = await fetch(proxy + encodeURIComponent(api));
-          const stations = await response.json();
-          stations.forEach(station => {
-            if (station.geo_lat && station.geo_long) {
-              const marker = L.circleMarker([station.geo_lat, station.geo_long], {
-                radius: 4,
-                color: "#0f0",
-                fillColor: "#0f0",
-                fillOpacity: 0.8
-              }).addTo(map);
-
-              marker.bindTooltip(station.name);
-              marker.on("click", () => {
-                audio.src = station.url_resolved;
-                audio.play().catch(err => console.error("Playback failed:", err));
-                player.textContent = "▶ " + station.name;
-              });
-            }
-          });
-        } catch (err) {
-          console.error("Failed to load stations:", err);
-          player.textContent = "⚠️ Failed to load stations.";
-        }
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(registration => {
+              console.log('ServiceWorker registration successful');
+              registration.update();
+            })
+            .catch(err => console.warn('ServiceWorker registration failed:', err));
+        });
       }
-
-      loadStations();
     </script>
   </body>
 </html>
