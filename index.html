@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>World Radio Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <!-- hls.js for HLS stream support -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #0a0a0a;
+      font-family: sans-serif;
+      color: white;
+    }
+
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+
+    #nowPlaying {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: #00ff88;
+      padding: 10px 20px;
+      border-radius: 25px;
+      font-size: 16px;
+      text-align: center;
+      z-index: 9999;
+      backdrop-filter: blur(6px);
+    }
+
+    .station-dot {
+      filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+      transition: transform 0.2s ease, filter 0.3s ease;
+    }
+
+    .station-dot:hover {
+      transform: scale(1.5);
+      filter: drop-shadow(0 0 6px rgba(0, 255, 128, 0.8));
+      z-index: 1000;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div id="nowPlaying">Click a station</div>
+  <audio id="audioPlayer" controls autoplay style="display:none;"></audio>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <script>
+    // Initialize map
+    const map = L.map('map', {
+      worldCopyJump: true,
+      minZoom: 2,
+      maxZoom: 8,
+      zoomControl: false
+    }).setView([20, 0], 2);
+
+    // Dark basemap
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      noWrap: true
+    }).addTo(map);
+
+    const audio = document.getElementById("audioPlayer");
+    const nowPlaying = document.getElementById("nowPlaying");
+
+    // --- FUNCTION: PLAY STATION ---
+    function playStation(station) {
+      const url = station.url;
+      const name = station.name;
+
+      if (Hls.isSupported() && url.endsWith(".m3u8")) {
+        const hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(audio);
+      } else {
+        audio.src = url;
+      }
+
+      audio.play()
+        .then(() => nowPlaying.textContent = "🎧 " + name)
+        .catch(err => {
+          console.error("Playback error:", err);
+          nowPlaying.textContent = "⚠️ Can't play: " + name;
+        });
+    }
+
+    // --- FUNCTION: LOAD STATIONS ---
+    async function loadStations() {
+      try {
+        nowPlaying.textContent = "Loading stations…";
+
+        const res = await fetch("https://de1.api.radio-browser.info/json/stations?limit=10000&hidebroken=true");
+        const data = await res.json();
+
+        data.forEach(st => {
+          if (!st.latitude || !st.longitude) return;
+
+          const marker = L.circleMarker([st.latitude, st.longitude], {
+            radius: 3,
+            color: "rgba(0,255,128,0.2)",
+            weight: 0.5,
+            fillColor: "#00ff88",
+            fillOpacity: 0.8,
+            className: "station-dot"
+          }).addTo(map);
+
+          marker.on("click", () => playStation(st));
+          marker.bindTooltip(st.name, {permanent: false, direction: "top"});
+        });
+
+        nowPlaying.textContent = "✅ Click a station to play";
+      } catch (e) {
+        console.error(e);
+        nowPlaying.textContent = "Failed to load stations.";
+      }
+    }
+
+    loadStations();
+  </script>
+</body>
+</html>
